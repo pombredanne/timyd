@@ -12,8 +12,12 @@ class Property(object):
         return obj._log.get_property(self._name)
 
     def __set__(self, obj, value):
-        if obj._log.get_property(self._name) != value:
-            obj._log.set_property(self._name, value)
+        try:
+            if obj._log.get_property(self._name) == value:
+                return
+        except KeyError:
+            pass
+        obj._log.set_property(self._name, value)
 
 
 
