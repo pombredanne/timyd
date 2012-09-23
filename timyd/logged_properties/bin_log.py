@@ -47,11 +47,12 @@ class _PropertyIterator(object):
 class BinaryLog(object):
     """A binary log.
 
-    log = header, {summary, {property_change}};
-    header = "BINLOG01", integer (*last summary offset*);
+    log = header, {property_change}, summary;
+    header = "BINLOG01", integer (*summary offset*);
     summary = integer (*length*), time,
-              integer (*next offset*), integer (*previous offset*),
-              {property_name, integer (*last prop change offset*)};
+              {property_name,
+               integer (*first prop change offset *),
+               integer (*last prop change offset*)};
     property_change = time,
                       integer (*next offset*), integer (*previous offset*),
                       property_name, value;
@@ -65,8 +66,8 @@ class BinaryLog(object):
     """
 
     def __init__(self, filename, readonly=False, debug=False):
-        # property name -> offset
-        self._last_property_update = dict()
+        # property name -> (first offset, last offset)
+        self._property_updates = dict()
 
         self.debug = debug
 
@@ -76,8 +77,12 @@ class BinaryLog(object):
             try:
                 self._file = open(filename, 'r+b')
             except IOError:
-                # mode 'a+b' doesn't work; we create it but still open with r+b
-                open(filename, 'w').close()
+                # Python uses fopen(), which has a weird behavior with 'a+':
+                # wherever the reading cursor is, writes would only happen at
+                # the end of the file
+                # Here we only use the mode 'r+b' which actually works,
+                # creating the file before if necessary
+                open(filename, 'wb').close()
             self._file = open(filename, 'r+b')
         self._file.seek(0, 2)
         self.readonly = readonly
@@ -88,28 +93,18 @@ class BinaryLog(object):
             self._file.write('BINLOG01')
             self._size += 8
             self._write_integer(0)
-            # Write an empty summary
-            self._last_summary_offset = None
-            self.write_summary()
+            self._summary = None
         else:
             self._file.seek(0)
             if self._read(8) != 'BINLOG01':
                 raise InvalidFile
-            last_summary = self._read_integer()
-            if last_summary < 16 or last_summary > self._size:
+            summary = self._read_integer()
+            if summary < 16 or summary >= self._size:
                 raise InvalidFile
-            self._last_summary_offset = last_summary
-            self._file.seek(last_summary)
-            t, next, prev, props = self._read_summary()
-            self._last_property_update.update(props)
-            self._ends_with_summary = self._file.tell() == self._size
-            if not self._ends_with_summary:
-                offset = self._file.tell()
-                while offset != self._size:
-                    t, next, prev, prop, value = self._read_property_change()
-                    self._last_property_update[prop] = offset
-
-                    offset = self._file.tell()
+            self._summary = summary
+            self._file.seek(summary)
+            t, props = self._read_summary()
+            self._property_updates = props
 
     def _read_summary(self):
         if self.debug:
@@ -119,17 +114,16 @@ class BinaryLog(object):
         if size < 32:
             raise InvalidFile
         t = self._read_integer() # time
-        next = self._read_integer() # next offset
-        prev = self._read_integer() # previous offset
         props = dict()
         end = offset + size
         offset = self._file.tell()
         while offset < end:
             prop = self._read_string()
-            o = self._read_integer()
-            props[prop] = o
+            first = self._read_integer()
+            last = self._read_integer()
+            props[prop] = (first, last)
             offset = self._file.tell()
-        return t, next, prev, props
+        return t, props
 
     def _read_property_change(self):
         if self.debug:
@@ -146,38 +140,52 @@ class BinaryLog(object):
         """
         if self.debug:
             sys.stderr.write("get_property(%r)" % prop)
-        pos = self._last_property_update[prop] # might raise KeyError
-        self._file.seek(pos)
+        pos = self._property_updates[prop] # might raise KeyError
+        self._file.seek(pos[1])
         t, next, prev, prop, value = self._read_property_change()
         return (t, value)
 
     def set_property(self, prop, value, t=None):
         """Records a new value of a property.
         """
+        if self.readonly:
+            raise ValueError("set_property() called on a readonly log")
+
         if not isinstance(value, (str, int, long)): # No unicode here
             raise TypeError
-        
+
         if self.debug:
             sys.stderr.write("set_property(%r, %r)\n" % (prop, value))
 
         if t is None:
             t = int(time.time())
 
+        if self._summary:
+            if self.debug:
+                sys.stderr.write("truncating summary\n")
+            self._file.seek(self._summary)
+            self._file.truncate()
+            self._size = self._file.tell()
+            self._summary = None
+
         try:
-            last_pos = self._last_property_update[prop]
-            self._file.seek(last_pos + 8)
+            pos = self._property_updates[prop] # might raise KeyError
+            self._file.seek(pos[1] + 8)
             # Overwrite the next offset
             self._write_integer(self._size, overwrite=True)
         except KeyError:
-            last_pos = 0
+            pos = None
 
         self._file.seek(0, 2)
 
-        self._last_property_update[prop] = self._size
+        if pos is not None:
+            self._property_updates[prop] = (pos[0], self._size)
+        else:
+            self._property_updates[prop] = (self._size, self._size)
 
         self._write_integer(t)
         self._write_integer(0)
-        self._write_integer(last_pos)
+        self._write_integer(pos[1] if pos else 0)
         self._write_string(prop)
         if isinstance(value, (int, long)):
             self._file.write('i')
@@ -187,8 +195,6 @@ class BinaryLog(object):
             self._file.write('s')
             self._size += 1
             self._write_string(value)
-
-        self._ends_with_summary = False
 
     def get_property_history(self, prop, start=None, end=None,
             dir=1, search=-1):
@@ -207,7 +213,7 @@ class BinaryLog(object):
         return _PropertyIterator(self, next_pos, end)
 
     def close(self, t=None):
-        if not self.readonly and not self._ends_with_summary:
+        if not self.readonly and self._summary is None:
             self.write_summary(t)
         self._file.close()
         if self.debug:
@@ -216,6 +222,10 @@ class BinaryLog(object):
     def write_summary(self, t=None):
         if t is None:
             t = int(time.time())
+
+        if self._summary is not None:
+            raise ValueError("write_summary() called on already summarized "
+                             "binary log")
 
         offset = self._size
 
@@ -227,23 +237,16 @@ class BinaryLog(object):
 
         self._write_integer(0) # length: overwrite later - probably inefficient
         self._write_integer(t) # time
-        self._write_integer(0) # next offset
-        # previous offset
-        if self._last_summary_offset is None:
-            self._write_integer(0)
-        else:
-            self._write_integer(self._last_summary_offset)
-        for prop, p_offset in self._last_property_update.iteritems():
+        for prop, offsets in self._property_updates.iteritems():
             self._write_string(prop)
-            self._write_integer(p_offset)
+            self._write_integer(offsets[0])
+            self._write_integer(offsets[1])
 
         size = self._file.tell() - offset
         self._file.seek(offset)
         self._write_integer(size, overwrite=True)
 
-
-        self._last_summary_offset = offset
-        self._ends_with_summary = True
+        self._summary = offset
 
     def _read(self, size):
         s = self._file.read(size)

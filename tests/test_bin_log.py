@@ -8,13 +8,12 @@ from timyd.logged_properties import BinaryLog, InvalidFile
 
 class Test_read_bin_log(unittest.TestCase):
     FILE = 'tests/run_read.binlog'
-    # 0 summary (empty)
     # 1 'name': 'remram'
     # 2 'age': 21
     # 3 'age': 22
-    # 3 summary (2 props)
     # 4 'name': 'remi'
     # 5 'age': 23
+    # 5 summary (2 props)
 
     def setUp(self):
         if os.path.exists(self.FILE):
@@ -26,21 +25,13 @@ class Test_read_bin_log(unittest.TestCase):
 
         # header
         log.write('BINLOG01') # magic
-        i(163) # offset of last summary
+        i(206) # offset of summary
 
         assert log.tell() == 16
 
-        # summary
-        i(32) # length
-        i(0) # time
-        i(163) # next offset
-        i(0) # previous offset
-
-        assert log.tell() == 48
-
         # property_change
         i(1) # time
-        i(222) # next offset
+        i(131) # next offset
         i(0) # previous offset
         log.write(struct.pack('>H', 4))
         log.write('name') # property_name
@@ -48,55 +39,41 @@ class Test_read_bin_log(unittest.TestCase):
         log.write(struct.pack('>H', 6))
         log.write('remram') # value
 
-        assert log.tell() == 87
+        assert log.tell() == 55
 
         # property_change
         i(2) # time
-        i(125) # next offset
+        i(93) # next offset
         i(0) # previous offset
         log.write(struct.pack('>H', 3))
         log.write('age') # property_name
         log.write('i')
         i(21) # value
 
-        assert log.tell() == 125
+        assert log.tell() == 93
 
         # property_change
         i(3) # time
-        i(259) # next offset
-        i(87) # previous offset
+        i(168) # next offset
+        i(55) # previous offset
         log.write(struct.pack('>H', 3))
         log.write('age') # property_name
         log.write('i')
         i(22) # value
 
-        assert log.tell() == 163
-
-        # summary
-        i(59) # length
-        i(3) # time
-        i(0) # next offset
-        i(16) # previous offset
-        log.write(struct.pack('>H', 4))
-        log.write('name') # property_name
-        i(48) # last prop change offset
-        log.write(struct.pack('>H', 3))
-        log.write('age') # property_name
-        i(125) # last prop change offset
-
-        assert log.tell() == 222
+        assert log.tell() == 131
 
         # property_change
         i(4) # time
         i(0) # next offset
-        i(48) # previous offset
+        i(16) # previous offset
         log.write(struct.pack('>H', 4))
         log.write('name') # property_name
         log.write('s')
         log.write(struct.pack('>H', 4))
         log.write('remi') # value
 
-        assert log.tell() == 259
+        assert log.tell() == 168
 
         # property_change
         i(5) # time
@@ -107,7 +84,21 @@ class Test_read_bin_log(unittest.TestCase):
         log.write('i')
         i(23) # value
 
-        assert log.tell() == 297
+        assert log.tell() == 206
+        
+        # summary
+        i(59) # length
+        i(5) # time
+        log.write(struct.pack('>H', 4))
+        log.write('name') # property_name
+        i(16) # first prop change offset
+        i(131) # last prop change offset
+        log.write(struct.pack('>H', 3))
+        log.write('age') # property_name
+        i(55) # first prop change offset
+        i(168) # last prop change offset
+
+        assert log.tell() == 265
 
         log.close()
 
