@@ -161,7 +161,7 @@ class Test_write_bin_log(unittest.TestCase):
         with BinaryLog(self.FILE, debug=True) as log:
             log.set_property('name', "remi")
             self.assertRaises(KeyError, log.get_property, 'age')
-            log.set_property('age', 20)
+            log['age'] = 20
             self.assertEqual(log.get_property('name')[1], "remi")
         with BinaryLog(self.FILE, debug=True) as log:
             log.set_property('age', 21)
