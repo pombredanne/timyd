@@ -78,14 +78,14 @@ class Test_read_bin_log(unittest.TestCase):
         # property_change
         i(5) # time
         i(0) # next offset
-        i(125) # previous offset
+        i(93) # previous offset
         log.write(struct.pack('>H', 3))
         log.write('age') # property_name
         log.write('i')
         i(23) # value
 
         assert log.tell() == 206
-        
+
         # summary
         i(59) # length
         i(5) # time
@@ -115,19 +115,37 @@ class Test_read_bin_log(unittest.TestCase):
             self.assertEqual(log['name'], 'remi')
             self.assertEqual(log['age'], 23)
 
-#    def test_iter_props(self):
-#        """Reads the history of properties.
-#        """
-#        with BinaryLog(self.FILE, readonly=True) as log:
-#            ages = log.get_property_history('age', 3)
-#            self.assertEqual(ages.next(), (3, 22))
-#            self.assertEqual(ages.next(), (5, 23))
-#            self.assertRaises(StopIteration, ages.next)
-#
-#            names = log.get_property_history('name', None, 5)
-#            self.assertEqual(names.next(), (1, 'remram'))
-#            self.assertEqual(names.next(), (4, 'remi'))
-#            self.assertRaises(StopIteration, names.next)
+    def test_iter_props(self):
+        """Reads the history of properties.
+        """
+        with BinaryLog(self.FILE, readonly=True, debug=True) as log:
+            for search in (1, -1):
+                ages = log.get_property_history('age', 3, dir=1,
+                                                search=search)
+                self.assertEqual(ages.next(), (3, 22))
+                self.assertEqual(ages.next(), (5, 23))
+                self.assertRaises(StopIteration, ages.next)
+
+                ages = log.get_property_history('age', 3, dir=-1,
+                                                search=search)
+                self.assertEqual(ages.next(), (3, 22))
+                self.assertEqual(ages.next(), (2, 21))
+                self.assertRaises(StopIteration, ages.next)
+
+                names = log.get_property_history('name', None, 5, dir=1,
+                                                 search=search)
+                self.assertEqual(names.next(), (1, 'remram'))
+                self.assertEqual(names.next(), (4, 'remi'))
+                self.assertRaises(StopIteration, names.next)
+
+                names = log.get_property_history('name', None, 3, dir=-1,
+                                                 search=search)
+                self.assertEqual(names.next(), (4, 'remi'))
+                self.assertRaises(StopIteration, names.next)
+
+                names = log.get_property_history('name', 7, 3, dir=1,
+                                                 search=search)
+                self.assertRaises(StopIteration, names.next)
 
 
 class Test_write_bin_log(unittest.TestCase):

@@ -22,10 +22,11 @@ class _PropertyIterator(object):
         t, next, prev, prop, value = self._log._read_property_change()
         r = False
 
-        if dir == -1:
+        if self._dir == -1:
             next = prev
 
-        if (dir == 1 and t > end) or (dir == -1 and t < end):
+        if self._end is not None and ((self._dir == 1 and t > self._end) or
+                (self._dir == -1 and t < self._end)):
             next = 0
             r = True
 
@@ -139,7 +140,7 @@ class BinaryLog(object):
         """Gets the current value of a property.
         """
         if self.debug:
-            sys.stderr.write("get_property(%r)" % prop)
+            sys.stderr.write("get_property(%r)\n" % prop)
         pos = self._property_updates[prop] # might raise KeyError
         self._file.seek(pos[1])
         t, next, prev, prop, value = self._read_property_change()
@@ -197,7 +198,7 @@ class BinaryLog(object):
             self._write_string(value)
 
     def get_property_history(self, prop, start=None, end=None,
-            dir=1, search=-1):
+            dir=1, search=1):
         """Gets the previous values of a property.
 
         start is the time we want to iterate from.
@@ -209,8 +210,40 @@ class BinaryLog(object):
         the beginning (1, default) or the end (-1). Use it if you know the
         requested position is closer to one extremity of the file.
         """
-        # TODO : find start
-        return _PropertyIterator(self, next_pos, end)
+        pos = self._property_updates[prop] # might raise KeyError
+        if start is None:
+            if dir == 1:
+                return _PropertyIterator(self, pos[0], end, dir=1)
+            else:
+                return _PropertyIterator(self, pos[1], end, dir=-1)
+
+        if search == 1:
+            pos = pos[0]
+            def found(tm):
+                return tm >= start
+            def nextpos(prev, next):
+                return next
+            t = start - 1
+        elif search == -1:
+            pos = pos[1]
+            def found(tm):
+                return tm <= start
+            def nextpos(prev, next):
+                return prev
+            t = start + 1
+
+        last = pos
+        while pos != 0:
+            self._file.seek(pos)
+            t, next, prev, prop, value = self._read_property_change()
+            if found(t):
+                if search != dir and t != start:
+                    return _PropertyIterator(self, last, end, dir=dir)
+                else:
+                    return _PropertyIterator(self, pos, end, dir=dir)
+            last = pos
+            pos = nextpos(prev, next)
+        return _PropertyIterator(None, None) # empty iterator
 
     def close(self, t=None):
         if not self.readonly and self._summary is None:
