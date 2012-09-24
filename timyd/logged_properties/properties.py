@@ -9,7 +9,7 @@ class Property(object):
         self._name = name
 
     def __get__(self, obj, type=None):
-        return obj._log.get_property(self._name)
+        return obj._log.get_property(self._name)[1]
 
     def __set__(self, obj, value):
         try:

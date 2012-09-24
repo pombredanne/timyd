@@ -1,5 +1,6 @@
 from optparse import OptionParser
 import logging
+import string
 import sys
 
 from timyd import SiteManager, import_site
@@ -24,10 +25,29 @@ class Runner(object):
 
     def check_services(self, service_names):
         logging.info("Checking site %s" % self.site.name)
-        # TODO : run in the correct order, considering the dependencies
+
+        self._checked_services = set()
+        self._active_services = set()
+
         for name in service_names:
             service = self.site.services[name]
-            service._do_check()
+            self._check_service(service)
+
+    def _check_service(self, service):
+        if service in self._checked_services:
+            return
+        if service in self._active_services:
+            raise Exception("Loop in service dependency graph! Services:\n%s" %
+                    string.join([s.name for s in self._active_services], ", "))
+        self._active_services.add(service)
+
+        for dep in self.site.get_dependencies(service):
+            if dep not in self._checked_services:
+                self._check_service(dep)
+
+        service._do_check()
+        self._checked_services.add(service)
+        self._active_services.remove(service)
 
     def end_run(self):
         self.site.end_run()

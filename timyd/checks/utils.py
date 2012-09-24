@@ -24,3 +24,6 @@ class InverseCheck(Service):
             raise InvertedCheckPassed
         elif self._with_error != () and status not in self._with_error:
             raise InvertedCheckUnexpectedError
+
+    def dependencies(self):
+        return (self._check,)

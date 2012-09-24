@@ -21,7 +21,6 @@ class Service(object):
         if self._log is None:
             self._log = SiteManager.get_log_for_service(self.site, self.name)
         logging.info("Running test for service %s" % self.name)
-        print "_log = %r" % self._log
         try:
             self.check()
         except CheckFailure, e:
@@ -113,6 +112,19 @@ class Site(object):
         service.site = self.name
         self.services[service.name] = service
         self._dependencies[service] = dependencies
+        if hasattr(service, 'dependencies'):
+            deps = service.dependencies()
+            if isinstance(deps, Service):
+                deps = (deps,)
+            self._dependencies[service] += deps
+            for dep in deps:
+                dep.site = self.name
+
+    def get_dependencies(self, service):
+        try:
+            return self._dependencies[service]
+        except KeyError:
+            return ()
 
     def add_action(self, action):
         action.site = self.name
