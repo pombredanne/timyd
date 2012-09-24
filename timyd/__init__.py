@@ -38,7 +38,8 @@ class Service(object):
         pass
 
     def end_run(self):
-        self._log.close()
+        if self._log is not None:
+            self._log.close()
 
 
 class Action(object):

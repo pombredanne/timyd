@@ -120,7 +120,7 @@ class ServerService(Service):
             finally:
                 reader.close()
             return
-        raise SSHService.CantConnect(self.address, self.port)
+        raise CantConnect(self.address, self.port)
 
     def connected_check(self, s, addrinfo):
         """Default version of connected_check() does nothing.

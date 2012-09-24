@@ -246,9 +246,12 @@ class BinaryLog(object):
         return _PropertyIterator(None, None) # empty iterator
 
     def close(self, t=None):
+        if self._file is None:
+            return
         if not self.readonly and self._summary is None:
             self.write_summary(t)
         self._file.close()
+        self._file = None
         if self.debug:
             sys.stderr.write("closed\n\n")
 
@@ -345,3 +348,6 @@ class BinaryLog(object):
     def __exit__(self, type, value, traceback):
         self.close()
         return False
+
+    def __del__(self):
+        self.close()

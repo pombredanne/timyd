@@ -6,7 +6,11 @@ class InvertedCheckPassed(CheckFailure):
 
 
 class InvertedCheckUnexpectedError(CheckFailure):
-    pass
+    def __init__(self, error):
+        self._error = error
+
+    def __str__(self):
+        return str(self._error)
 
 
 class InverseCheck(Service):
@@ -16,14 +20,24 @@ class InverseCheck(Service):
     def __init__(self, name, check, with_error=None):
         Service.__init__(self, name)
         self._check = check
-        self._with_error = with_error
+        self._with_error = set()
+        for error in with_error:
+            if isinstance(error, basestring):
+                self._with_error.add(error)
+            elif issubclass(error, CheckFailure):
+                self._with_error.add(error.__name__)
+            else:
+                raise TypeError(
+                        "InverseCheck expects a list of exception classes; "
+                        "got a list with a %s" % type(error))
 
     def check(self):
         status = self._check.status
         if status == '': # no exception: ok
             raise InvertedCheckPassed
-        elif self._with_error != () and status not in self._with_error:
-            raise InvertedCheckUnexpectedError
+        elif self._with_error and status not in self._with_error:
+            print status, self._with_error
+            raise InvertedCheckUnexpectedError(status)
 
     def dependencies(self):
         return (self._check,)
