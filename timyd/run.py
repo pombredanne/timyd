@@ -4,21 +4,32 @@ import string
 import sys
 
 from timyd import SiteManager, import_site
+from timyd.actions.text import TextOutput
+from timyd.console import colors
 
 
 class Runner(object):
     def __init__(self, site, **options):
-        level = {
-                0: logging.ERROR, # --quiet
-                1: logging.WARNING, # default
-                2: logging.INFO, # -v
-                3: logging.DEBUG, # -v -v
-                }[options['verbosity']]
+        if options['verbosity'] == 0: # default
+            level = logging.WARNING
+        elif options['verbosity'] == 1: # -v
+            level = logging.INFO
+        else: # -v -v
+            level = logging.DEBUG
 
         logging.basicConfig(level=level)
 
         SiteManager.configure(**options)
         self.site = import_site(site)
+
+        if options['textoutput']:
+            if options['colors'] == True:
+                colors.enable(True)
+            elif options['colors'] == False:
+                colors.enable(False)
+            else: # options['colors'] is None
+                colors.auto()
+            self.site.add_action(TextOutput())
 
     def check_site(self):
         self.check_services(self.site.services.keys())
@@ -57,17 +68,28 @@ def main():
     optparser = OptionParser()
     optparser.add_option(
             '-q', '--quiet',
-            action='store_const', const=0, dest='verbosity',
-            default=1,
-            help="don't print status messages to stdout")
+            action='store_false', dest='textoutput',
+            help="don't print service check results on stdout")
     optparser.add_option(
             '-v', '--verbose',
             action='count', dest='verbosity',
-            default=1,
             help="increase program verbosity")
+    optparser.add_option(
+            '-l', '--logs',
+            action='store', dest='logs',
+            help="location of the service logs (default: .timyd_logs)")
+    optparser.add_option(
+            '--colors',
+            action='store_true', dest='colors',
+            help="use colored terminal output")
+    optparser.add_option(
+            '--no-colors',
+            action='store_false', dest='colors',
+            help="don't use colored terminal output")
+    optparser.set_defaults(colors=None, verbosity=0, textoutput=True,
+                           logs='.timyd_logs')
     (options, args) = optparser.parse_args()
     options = vars(options) # options is not a dict!?
-
 
     try:
         site = args.pop(0)

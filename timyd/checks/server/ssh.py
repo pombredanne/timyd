@@ -18,8 +18,7 @@ class SSHService(ServerService):
         def __str__(self):
             return self.msg
 
-    banner = StringProperty(
-            "The banner sent by the server upon connection")
+    banner = StringProperty('banner')
 
     def __init__(self, name, address, port=22):
         ServerService.__init__(self, name, address, port)

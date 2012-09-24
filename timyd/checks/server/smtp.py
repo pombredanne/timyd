@@ -18,8 +18,7 @@ class SMTPService(ServerService):
         def __str__(self):
             return self.msg
 
-    banner = StringProperty(
-            "The banner sent by the server upon connection")
+    banner = StringProperty('banner')
 
     def __init__(self, name, address, port=25, rcpt=True,
             from_host='smtp_test.monitor.org'):
@@ -31,9 +30,10 @@ class SMTPService(ServerService):
         banner = s.read_line(512)
         t = time.time() - self.check_start
         if banner is None or banner == '':
-            raise SSHService.ProtocolMismatch("Unable to read SMTP banner")
+            raise SMTPService.ProtocolMismatch("Unable to read SMTP banner")
         if not banner.startswith("220 "):
-            raise ProtocolMismatch("Server did not send 220 banner")
+            raise SMTPService.ProtocolMismatch(
+                    "Server did not send 220 banner")
         self.banner = banner
         if t > 2:
             self.warning(

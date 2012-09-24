@@ -69,14 +69,6 @@ class MailAlertAction(Action):
                 body,
                 **self._options)
 
-    def register_property_change(self, site, service, name,
-            old_value, new_value):
-        pass
-
-    def register_service_check(self, site, service,
-            old_status, status, error):
-        pass
-
     def end_run(self):
         self._sender.quit()
 

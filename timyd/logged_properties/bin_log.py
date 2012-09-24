@@ -89,23 +89,28 @@ class BinaryLog(object):
         self.readonly = readonly
         self._size = self._file.tell()
 
-        if (not self.readonly) and self._size == 0:
-            # Log just created, write header
-            self._file.write('BINLOG01')
-            self._size += 8
-            self._write_integer(0)
-            self._summary = None
-        else:
-            self._file.seek(0)
-            if self._read(8) != 'BINLOG01':
-                raise InvalidFile
-            summary = self._read_integer()
-            if summary < 16 or summary >= self._size:
-                raise InvalidFile
-            self._summary = summary
-            self._file.seek(summary)
-            t, props = self._read_summary()
-            self._property_updates = props
+        try:
+            if (not self.readonly) and self._size == 0:
+                # Log just created, write header
+                self._file.write('BINLOG01')
+                self._size += 8
+                self._write_integer(0)
+                self._summary = None
+            else:
+                self._file.seek(0)
+                if self._read(8) != 'BINLOG01':
+                    raise InvalidFile
+                summary = self._read_integer()
+                if summary < 16 or summary >= self._size:
+                    raise InvalidFile
+                self._summary = summary
+                self._file.seek(summary)
+                t, props = self._read_summary()
+                self._property_updates = props
+        except:
+            self._file.close()
+            self._file = None
+            raise
 
     def _read_summary(self):
         if self.debug:

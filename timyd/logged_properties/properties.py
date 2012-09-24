@@ -9,15 +9,10 @@ class Property(object):
         self._name = name
 
     def __get__(self, obj, type=None):
-        return obj._log.get_property(self._name)[1]
+        return obj.get_property(self._name)
 
     def __set__(self, obj, value):
-        try:
-            if obj._log.get_property(self._name) == value:
-                return
-        except KeyError:
-            pass
-        obj._log.set_property(self._name, value)
+        obj.set_property(self._name, value)
 
 
 
