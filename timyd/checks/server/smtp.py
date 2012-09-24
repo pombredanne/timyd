@@ -4,7 +4,7 @@ import time
 from timyd import Service, CheckFailure
 from timyd.logged_properties import StringProperty
 
-from .server import ServerService, _read_line
+from .server import ServerService
 
 
 class SMTPService(ServerService):
@@ -28,7 +28,7 @@ class SMTPService(ServerService):
         self.from_host = from_host
 
     def connected_check(self, s, addrinfo):
-        banner = _read_line(s, 512)
+        banner = s.read_line(512)
         t = time.time() - self.check_start
         if banner is None or banner == '':
             raise SSHService.ProtocolMismatch("Unable to read SMTP banner")

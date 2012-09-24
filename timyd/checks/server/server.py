@@ -28,23 +28,52 @@ class TimedOut(CheckFailure):
         return self.msg
 
 
-def _read_line(s, max):
-    t = time.time()
-    tm = s.gettimeout()
-    buf = ''
-    while len(buf) < max:
-        data = s.recv(max - len(buf))
-        p = data.find('\n')
+class InvalidLine(CheckFailure):
+    def __str__(self):
+        return "Line too long - wrong protocol or DoS attempt?"
+
+
+class LineReader(object):
+    """Wrapper for a socket allowing to read one line at a time.
+    """
+
+    def __init__(self, sock):
+        self._sock = sock
+        self._buf = ''
+
+    def settimeout(self, tm):
+        self._sock.settimeout(tm)
+
+    def read_line(self, max):
+        start = time.time()
+        tm = self._sock.gettimeout()
+        p = self._buf.find('\n')
         if p >= 0:
-            buf += data[:p]
-            if buf[-1] == '\r':
-                buf = buf[:-1]
-            return buf
-        buf += data
-        now = time.time()
-        if tm and now - t > tm:
-            raise TimedOut(u"Timed out while reading a line after %fs" % now)
-    return None
+            l = self._buf[:p]
+            if l[-1] == '\r':
+                l = l[:-1]
+            return l
+        while len(self._buf) < max:
+            data = self._sock.recv(max - len(self._buf))
+            p = data.find('\n')
+            if p >= 0:
+                l = self._buf + data[:p]
+                self._buf = data[p+1:]
+                if l[-1] == '\r':
+                    l = l[:-1]
+                return l
+            self._buf += data
+            now = time.time()
+            if tm and now - start > tm:
+                raise TimedOut(u"Timed out while reading a line after %fs" %
+                        (now - start))
+        raise InvalidLine
+
+    def send(self, data):
+        self._sock.send(data)
+
+    def close(self):
+        self._sock.close()
 
 
 class ServerService(Service):
@@ -85,10 +114,11 @@ class ServerService(Service):
             except socket.error, e:
                 s.close()
                 continue
+            reader = LineReader(s)
             try:
-                self.connected_check(s, info)
+                self.connected_check(reader, info)
             finally:
-                s.close()
+                reader.close()
             return
         raise SSHService.CantConnect(self.address, self.port)
 
