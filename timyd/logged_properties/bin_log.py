@@ -1,3 +1,5 @@
+import atexit
+import logging
 import struct
 import sys
 import time
@@ -45,6 +47,21 @@ class _PropertyIterator(object):
         return self
 
 
+_opened_logs = set()
+
+def close_opened_logs():
+    global _opened_logs
+    if _opened_logs:
+        logging.debug("closing %d binary logs from atexit" % len(_opened_logs))
+    opened_logs = list(_opened_logs)
+    for log in opened_logs:
+        log.close()
+    _opened_logs = set()
+
+
+atexit.register(close_opened_logs)
+
+
 class BinaryLog(object):
     """A binary log.
 
@@ -67,6 +84,8 @@ class BinaryLog(object):
     """
 
     def __init__(self, filename, readonly=False, debug=False):
+        global _opened_logs
+
         # property name -> (first offset, last offset)
         self._property_updates = dict()
 
@@ -111,13 +130,15 @@ class BinaryLog(object):
             self._file.close()
             self._file = None
             raise
+        else:
+            _opened_logs.add(self)
 
     def _read_summary(self):
         if self.debug:
             sys.stderr.write("_read_summary @ %r\n" % self._file.tell())
         offset = self._file.tell()
         size = self._read_integer() # length
-        if size < 32:
+        if size < 16:
             raise InvalidFile
         t = self._read_integer() # time
         props = dict()
@@ -251,6 +272,8 @@ class BinaryLog(object):
         return _PropertyIterator(None, None) # empty iterator
 
     def close(self, t=None):
+        global _opened_logs
+        _opened_logs.remove(self)
         if self._file is None:
             return
         if not self.readonly and self._summary is None:
@@ -353,6 +376,3 @@ class BinaryLog(object):
     def __exit__(self, type, value, traceback):
         self.close()
         return False
-
-    def __del__(self):
-        self.close()
