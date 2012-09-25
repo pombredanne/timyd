@@ -44,9 +44,9 @@ class Test_linereader(unittest.TestCase):
 
     def test_timeout(self):
         def out(max):
-            time.sleep(2)
+            time.sleep(3)
             return "r"
         s = FakeSocket(2, ["remi ", out, "ampin\nfoo"])
         r = LineReader(s)
 
-        self.assertRaises(TimedOut, r.read_line, 8)
+        self.assertRaises(TimedOut, r.read_line, 100)
