@@ -1,9 +1,13 @@
+import smtplib
+import string
+import time
+
 from timyd import Action
 
 
 class MailSender(object):
     def __init__(self, **options):
-        self._from_addr = options.get('from', 'timyd@example.org')
+        self._from_addr = options.get('sender', 'timyd@example.org')
         self._server = None
 
     def send_mail(self, to, subject, body, **options):
@@ -21,7 +25,7 @@ class MailSender(object):
         if self._server is None:
             self._server = smtplib.SMTP(options['smtp_host'],
                                        options.get('smtp_port', 25))
-        self._server.sendmail(from_addr, to, data)
+        self._server.sendmail(self._from_addr, to, data)
 
     def quit(self):
         if self._server is not None:
@@ -50,7 +54,7 @@ class MailAlertAction(Action):
                 'date': time.strftime('%Y-%m-%d'),
                 'time': time.strftime('%H:%M:%S'),
                 'site': site,
-                'service': service.name,
+                'service': service,
                 'old_status': 'ok' if not old_status else 'error',
                 'new_status': 'ok' if not new_status else 'error'}
         subject = self._options.get('subject_format')
@@ -71,4 +75,3 @@ class MailAlertAction(Action):
 
     def end_run(self):
         self._sender.quit()
-

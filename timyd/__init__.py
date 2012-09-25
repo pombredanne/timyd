@@ -32,15 +32,15 @@ class Service(object):
             self.check()
         except CheckFailure, e:
             status = e.__class__.__name__
-            self.site.service_checked(
-                    self,
-                    old_status, status, e, self._warnings)
-            self.status = status
         else:
-            self.site.service_checked(
-                    self,
-                    old_status, '', None, self._warnings)
-            self.status = ''
+            status = ''
+            e = None
+        self.site.service_checked(
+                self,
+                old_status, status, e, self._warnings)
+        if status != old_status:
+            self.site.status_changed(self, old_status, status)
+        self.status = status
         self._warnings = None
 
     def warning(self, name, msg):
@@ -220,7 +220,17 @@ class Site(object):
                     self.name, service.name,
                     old_status, new_status, error, warnings)
 
+    def status_changed(self, service, old_status, new_status):
+        if service.name not in self.services:
+            return
+        for action in self.actions:
+            action.register_status_change(
+                    self.name, service.name,
+                    old_status, new_status)
+
     def property_changed(self, service, name, old_value, new_value):
+        if service.name not in self.services:
+            return
         for action in self.actions:
             action.register_property_change(
                     self.name, service.name, name,
