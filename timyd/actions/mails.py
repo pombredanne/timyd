@@ -37,7 +37,7 @@ class MailAlertAction(Action):
     """Sends an alert when a service's status changes.
     """
 
-    _DEFAULT_SUBJECT = '[timyd] [{site}] Service {service} is {new_status}'
+    _DEFAULT_SUBJECT = '[timyd] [{site}] Service {service} is {short_status}'
 
     _DEFAULT_BODY = ('Service: {service}\n'
              'Date: {date} {time}\n'
@@ -50,13 +50,16 @@ class MailAlertAction(Action):
         self._sender = MailSender(**options)
 
     def register_status_change(self, site, service, old_status, new_status):
+        if old_status is None:
+            old_status = "(unknown)"
         infos = {
                 'date': time.strftime('%Y-%m-%d'),
                 'time': time.strftime('%H:%M:%S'),
                 'site': site,
                 'service': service,
-                'old_status': 'ok' if not old_status else 'error',
-                'new_status': 'ok' if not new_status else 'error'}
+                'old_status': old_status,
+                'new_status': new_status,
+                'short_status': new_status and "ok" or "error"}
         subject = self._options.get('subject_format')
         if subject is None:
             subject = self._DEFAULT_SUBJECT.format(**infos)

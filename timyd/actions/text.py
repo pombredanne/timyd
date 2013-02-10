@@ -34,7 +34,7 @@ class TextOutput(Action):
 
         color = colors.yellow if status != old_status else colors.white
         sys.stdout.write(color(
-                "[status change] %s.%s: %s" % (
+                "[service check] %s.%s: %s" % (
                 site, service, format_status(status))))
         if old_status is not None:
             sys.stdout.write(" (was %s)\n" % format_status(old_status))

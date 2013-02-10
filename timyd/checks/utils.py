@@ -24,7 +24,7 @@ class InverseCheck(Service):
         for error in with_error:
             if isinstance(error, basestring):
                 self._with_error.add(error)
-            elif issubclass(error, CheckFailure):
+            elif isinstance(error, type) and issubclass(error, Exception):
                 self._with_error.add(error.__name__)
             else:
                 raise TypeError(
@@ -36,7 +36,6 @@ class InverseCheck(Service):
         if status == '': # no exception: ok
             raise InvertedCheckPassed
         elif self._with_error and status not in self._with_error:
-            print status, self._with_error
             raise InvertedCheckUnexpectedError(status)
 
     def dependencies(self):
